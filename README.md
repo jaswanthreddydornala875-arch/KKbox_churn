@@ -31,9 +31,22 @@ Expected under `DATA_DIR` (`/Users/jaswanth/KKbox/dataset`):
 
 - **`processed/master_merged.csv`** — one row per sampled user with demographics, latest transaction summary, and activity summary, ready for feature engineering / EDA in a follow-up notebook.
 
-## Open decision (flagged in-notebook)
+## Null-handling (resolved)
 
-Users with no matching rows in `transactions_v2.csv` or `user_logs_v2.csv` show up as nulls in the corresponding aggregated columns after the merge. This may be a meaningful signal (e.g. inactive users) rather than missing data. **Not yet resolved:** whether to impute, flag, or drop these before feature engineering — decide with the team and record the decision here.
+Users with no matching rows in `transactions_v2.csv` or `user_logs_v2.csv` are treated as a signal (inactive/lapsed users), not a data-quality issue:
+
+- `has_transactions` / `has_logs` boolean flags mark which users had matching rows.
+- Transaction/log count, sum, and mean columns are imputed to `0` for users with no activity.
+- Date columns (`last_transaction_date`, `first_log_date`, etc.) are left as `NaT` — filter on the `has_*` flags rather than nulls when using them.
+- `bd_clean` keeps its own `is_age_missing` flag instead of being imputed.
+
+## Leakage check
+
+Added a check comparing the transaction/log activity window against the March 2017 churn-decision cutoff, and a flag for the fraction of transactions with an expiry date past that cutoff. Review the printed output before trusting date-derived features in modeling — if a non-trivial share of transactions expire after the label window, exclude them from aggregation.
+
+## Data dictionary
+
+The notebook now includes a data dictionary cell (column → source → meaning) right before the final save, so anyone doing EDA doesn't have to reverse-engineer column meaning from code.
 
 ## Requirements
 
@@ -42,5 +55,11 @@ Users with no matching rows in `transactions_v2.csv` or `user_logs_v2.csv` show 
 
 ## Notes on reproducing
 
-- File paths (`DATA_DIR`, `OUTPUT_DIR`) are hardcoded to a local path and will need to be updated to run elsewhere.
+- File paths (`DATA_DIR`, `OUTPUT_DIR`) are hardcoded to a local path (`/Users/jaswanth/...`) — **each team member needs to update these two lines to their own local dataset path** before running.
 - `SAMPLE_SIZE` and `CHUNK_SIZE` are adjustable constants near the top of the relevant cells — increase `SAMPLE_SIZE` for a larger working set if memory allows.
+- All cell outputs have been cleared, since the added cells shift execution order — run the notebook top to bottom before handing it off.
+
+## Still open for the modeling stage (not needed for EDA)
+
+- Categorical codes (`city`, `gender`, `registered_via`, `last_payment_method`) are left unencoded — fine for EDA, but will need encoding before modeling.
+- No train/validation split yet — this notebook produces one full sampled+merged file; add a stratified split as a separate step once the team moves from EDA to modeling.
